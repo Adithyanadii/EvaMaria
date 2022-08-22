@@ -1,5 +1,5 @@
 import os
-from pyrogram import Client, filters
+from pyrogram import Client, filters, enums
 from pyrogram.errors.exceptions.bad_request_400 import UserNotParticipant, MediaEmpty, PhotoInvalidDimensions, WebpageMediaEmpty
 from info import IMDB_TEMPLATE
 from utils import extract_user, get_file_id, get_poster, last_online
@@ -13,7 +13,7 @@ logger.setLevel(logging.ERROR)
 @Client.on_message(filters.command('id'))
 async def showid(client, message):
     chat_type = message.chat.type
-    if chat_type == "private":
+    if chat_type == enums.ChatType.PRIVATE:
         user_id = message.chat.id
         first = message.from_user.first_name
         last = message.from_user.last_name or ""
@@ -24,7 +24,7 @@ async def showid(client, message):
             quote=True
         )
 
-    elif chat_type in ["group", "supergroup"]:
+    elif chat_type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
         _id = ""
         _id += (
             "<b>➲ Chat ID</b>: "
@@ -78,15 +78,15 @@ async def who_is(client, message):
     message_out_str += f"<b>➲Last Name:</b> {last_name}\n"
     message_out_str += f"<b>➲Telegram ID:</b> <code>{from_user.id}</code>\n"
     username = from_user.username or "<b>None</b>"
-    dc_id = from_user.dc_id or "[User Doesnt Have A Valid DP]"
+    dc_id = from_user.dc_id or "[User Doesn't Have A Valid DP]"
     message_out_str += f"<b>➲Data Centre:</b> <code>{dc_id}</code>\n"
     message_out_str += f"<b>➲User Name:</b> @{username}\n"
     message_out_str += f"<b>➲User 𝖫𝗂𝗇𝗄:</b> <a href='tg://user?id={from_user.id}'><b>Click Here</b></a>\n"
-    if message.chat.type in (("supergroup", "channel")):
+    if message.chat.type in ((enums.ChatType.SUPERGROUP, enums.ChatType.CHANNEL)):
         try:
             chat_member_p = await message.chat.get_member(from_user.id)
-            joined_date = datetime.fromtimestamp(
-                chat_member_p.joined_date or time.time()
+            joined_date = (
+                chat_member_p.joined_date or datetime.now()
             ).strftime("%Y.%m.%d %H:%M:%S")
             message_out_str += (
                 "<b>➲Joined this Chat on:</b> <code>"
@@ -109,7 +109,7 @@ async def who_is(client, message):
             quote=True,
             reply_markup=reply_markup,
             caption=message_out_str,
-            parse_mode="html",
+            parse_mode=enums.ParseMode.HTML,
             disable_notification=True
         )
         os.remove(local_user_photo)
@@ -122,7 +122,7 @@ async def who_is(client, message):
             text=message_out_str,
             reply_markup=reply_markup,
             quote=True,
-            parse_mode="html",
+            parse_mode=enums.ParseMode.HTML,
             disable_notification=True
         )
     await status_message.delete()
@@ -149,8 +149,8 @@ async def imdb_search(client, message):
         await message.reply('Give me a movie / series Name')
 
 @Client.on_callback_query(filters.regex('^imdb'))
-async def imdb_callback(bot: Client, query: CallbackQuery):
-    i, movie = query.data.split('#')
+async def imdb_callback(bot: Client, quer_y: CallbackQuery):
+    i, movie = quer_y.data.split('#')
     imdb = await get_poster(query=movie, id=True)
     btn = [
             [
@@ -160,6 +160,7 @@ async def imdb_callback(bot: Client, query: CallbackQuery):
                 )
             ]
         ]
+    message = quer_y.message.reply_to_message or quer_y.message
     if imdb:
         caption = IMDB_TEMPLATE.format(
             query = imdb['title'],
@@ -189,24 +190,25 @@ async def imdb_callback(bot: Client, query: CallbackQuery):
             poster = imdb['poster'],
             plot = imdb['plot'],
             rating = imdb['rating'],
-            url = imdb['url']
+            url = imdb['url'],
+            **locals()
         )
     else:
         caption = "No Results"
     if imdb.get('poster'):
         try:
-            await query.message.reply_photo(photo=imdb['poster'], caption=caption, reply_markup=InlineKeyboardMarkup(btn))
+            await quer_y.message.reply_photo(photo=imdb['poster'], caption=caption, reply_markup=InlineKeyboardMarkup(btn))
         except (MediaEmpty, PhotoInvalidDimensions, WebpageMediaEmpty):
             pic = imdb.get('poster')
             poster = pic.replace('.jpg', "._V1_UX360.jpg")
-            await query.message.reply_photo(photo=imdb['poster'], caption=caption, reply_markup=InlineKeyboardMarkup(btn))
+            await quer_y.message.reply_photo(photo=poster, caption=caption, reply_markup=InlineKeyboardMarkup(btn))
         except Exception as e:
             logger.exception(e)
-            await query.message.reply(caption, reply_markup=InlineKeyboardMarkup(btn), disable_web_page_preview=False)
-        await query.message.delete()
+            await quer_y.message.reply(caption, reply_markup=InlineKeyboardMarkup(btn), disable_web_page_preview=False)
+        await quer_y.message.delete()
     else:
-        await query.message.edit(caption, reply_markup=InlineKeyboardMarkup(btn), disable_web_page_preview=False)
-    await query.answer()
+        await quer_y.message.edit(caption, reply_markup=InlineKeyboardMarkup(btn), disable_web_page_preview=False)
+    await quer_y.answer()
         
 
         
